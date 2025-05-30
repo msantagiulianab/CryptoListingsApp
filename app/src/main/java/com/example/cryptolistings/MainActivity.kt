@@ -65,7 +65,6 @@ fun CryptoApp(apiService: CryptoApiService) {
                 val detailViewModel: CryptoDetailViewModel = viewModel(
                     factory = CryptoDetailViewModel.Factory(apiService)
                 )
-                detailViewModel.loadCryptoDetails(crypto)
                 CryptoDetailScreen(
                     crypto = crypto,
                     viewModel = detailViewModel,
