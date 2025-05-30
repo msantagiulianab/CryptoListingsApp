@@ -2,40 +2,26 @@ package com.example.cryptolistings.ui
 
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.cryptolistings.data.CryptoModel
 import com.example.cryptolistings.data.PricePoint
+import com.example.cryptolistings.service.PriceAlertService
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -43,6 +29,8 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.time.format.DateTimeFormatter
+import android.content.Context
+import android.widget.Toast
 
 private const val TAG = "CryptoDetailScreen"
 
@@ -64,11 +52,29 @@ fun CryptoDetailScreen(
 ) {
     Log.d(TAG, "Opening detail screen for ${crypto.name}")
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    
+    // State for price alert input
+    var alertPrice by remember { mutableStateOf("") }
+    var isAlertActive by remember { mutableStateOf(false) }
+    
+    // Load saved alert price if exists
+    LaunchedEffect(crypto.id) {
+        val savedPrice = context.getSharedPreferences("price_alerts", Context.MODE_PRIVATE)
+            .getString("alert_${crypto.id}", "")
+        if (savedPrice != null && savedPrice.isNotEmpty()) {
+            alertPrice = savedPrice
+            isAlertActive = true
+        }
+    }
 
     LaunchedEffect(crypto) {
         Log.d(TAG, "Loading details for ${crypto.name}")
         viewModel.loadCryptoDetails(crypto)
     }
+
+    // Add this at the top of the CryptoDetailScreen composable, after the existing state variables
+    var showAlertDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -126,7 +132,7 @@ fun CryptoDetailScreen(
                             color = TextSecondary
                         )
                         Text(
-                            text = "£${crypto.currentPrice}",
+                            text = viewModel.formatPrice(crypto.currentPrice),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Bold
                             ),
@@ -141,6 +147,45 @@ fun CryptoDetailScreen(
                                 text = "${String.format("%.2f", crypto.priceChangePercentage24h)}%",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = color
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Price Alert Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = CardBackground
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Price Alert",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { showAlertDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Set Price Alert")
+                        }
+                        if (isAlertActive) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Current Alert: ${alertPrice.toDoubleOrNull()?.let { viewModel.formatPrice(it) } ?: alertPrice}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = TextSecondary
                             )
                         }
                     }
@@ -174,7 +219,10 @@ fun CryptoDetailScreen(
                         is DetailUiState.Success -> {
                             val pricePoints = (uiState as DetailUiState.Success).pricePoints
                             if (pricePoints.isNotEmpty()) {
-                                PriceChart(pricePoints = pricePoints)
+                                PriceChart(
+                                    pricePoints = pricePoints,
+                                    formatPrice = { price -> viewModel.formatPrice(price) }
+                                )
                             } else {
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
@@ -205,10 +253,91 @@ fun CryptoDetailScreen(
             }
         }
     }
+
+    // Add this after the Scaffold closing brace but before the end of the composable
+    if (showAlertDialog) {
+        AlertDialog(
+            onDismissRequest = { showAlertDialog = false },
+            title = { Text("Set Price Alert", color = TextPrimary) },
+            text = {
+                Column {
+                    Text("Set a price alert for ${crypto.symbol}", color = TextSecondary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = alertPrice,
+                        onValueChange = { newValue ->
+                            if (newValue.isEmpty() || newValue.toDoubleOrNull() != null) {
+                                alertPrice = newValue
+                            }
+                        },
+                        label = { Text("Target Price (USD)", color = TextSecondary) },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        ),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = CardBackground,
+                            unfocusedContainerColor = CardBackground,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetPrice = alertPrice.toDoubleOrNull()
+                        if (targetPrice != null && targetPrice > 0) {
+                            // Save alert
+                            context.getSharedPreferences("price_alerts", Context.MODE_PRIVATE)
+                                .edit()
+                                .putString("alert_${crypto.id}", alertPrice)
+                                .apply()
+                            
+                            // Start service if not running
+                            PriceAlertService.startService(context)
+                            
+                            isAlertActive = true
+                            showAlertDialog = false
+                            
+                            Toast.makeText(
+                                context,
+                                "Alert set for ${viewModel.formatPrice(targetPrice)}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Please enter a valid price",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Set Alert")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAlertDialog = false }
+                ) {
+                    Text("Cancel", color = TextPrimary)
+                }
+            },
+            containerColor = CardBackground
+        )
+    }
 }
 
 @Composable
-private fun PriceChart(pricePoints: List<PricePoint>) {
+private fun PriceChart(
+    pricePoints: List<PricePoint>,
+    formatPrice: (Double) -> String
+) {
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     val entries = pricePoints.mapIndexed { index, point ->
         Entry(index.toFloat(), point.price.toFloat())
@@ -264,7 +393,7 @@ private fun PriceChart(pricePoints: List<PricePoint>) {
                     this.textColor = textColor
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
-                            return "£${String.format("%.2f", value)}"
+                            return formatPrice(value.toDouble())
                         }
                     }
                     axisMinimum = minY.toFloat()

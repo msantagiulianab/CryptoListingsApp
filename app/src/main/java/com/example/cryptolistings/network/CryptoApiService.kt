@@ -18,6 +18,6 @@ interface CryptoApiService {
 
     @GET("v3/ticker/price")
     suspend fun getExchangeRate(
-        @Query("symbol") symbol: String = "GBPUSDT"
+        @Query("symbol") symbol: String = "USDT"
     ): BinancePriceResponse
 } 

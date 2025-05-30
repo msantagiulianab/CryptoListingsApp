@@ -27,7 +27,6 @@ import java.text.NumberFormat
 import java.util.*
 
 private const val TAG = "CryptoListScreen"
-private const val USD_TO_GBP_RATE = 0.79 // Current approximate exchange rate
 
 // Custom colors
 private val CardBackground = Color(0xFF1E1E1E)
@@ -206,10 +205,8 @@ private fun CryptoItem(
                 horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = viewModel.formatPriceInGBP(crypto.currentPrice),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
+                    text = viewModel.formatPrice(crypto.currentPrice),
+                    style = MaterialTheme.typography.bodyLarge,
                     color = TextPrimary
                 )
                 crypto.priceChangePercentage24h?.let { change ->
