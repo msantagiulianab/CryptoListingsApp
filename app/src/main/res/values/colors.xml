@@ -21,4 +21,8 @@
     <!-- Status colors -->
     <color name="positive_green">#00C853</color>
     <color name="negative_red">#FF3D00</color>
+    
+    <!-- Splash screen colors -->
+    <color name="splash_background">@color/white</color>
+    <color name="splash_icon_background">@color/white</color>
 </resources>

@@ -80,6 +80,9 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
     
+    // Splash Screen
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    
     // Charts
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("com.patrykandpatrick.vico:compose:1.13.1")

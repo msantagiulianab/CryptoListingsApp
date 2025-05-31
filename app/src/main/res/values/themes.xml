@@ -31,4 +31,24 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
+
+    <style name="Theme.CryptoListings.Splash" parent="Theme.SplashScreen">
+        <!-- Set the splash screen background color -->
+        <item name="windowSplashScreenBackground">@color/background_dark</item>
+        
+        <!-- Use the Bitcoin icon as the splash screen icon -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        
+        <!-- Set the animation duration -->
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+        
+        <!-- Set the icon background color to match the app's background -->
+        <item name="windowSplashScreenIconBackgroundColor">@color/background_dark</item>
+        
+        <!-- Always show the icon on splash screen -->
+        <item name="android:windowSplashScreenBehavior">icon_preferred</item>
+        
+        <!-- Set the theme of the Activity that follows your splash screen -->
+        <item name="postSplashScreenTheme">@style/Theme.CryptoListings</item>
+    </style>
 </resources>
