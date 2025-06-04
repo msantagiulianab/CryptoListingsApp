@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,12 +31,18 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.time.format.DateTimeFormatter
 import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.core.content.FileProvider
+import java.io.File
+import java.io.FileOutputStream
 
 private const val TAG = "CryptoDetailScreen"
 
@@ -64,6 +71,9 @@ fun CryptoDetailScreen(
     var alertPrice by remember { mutableStateOf("") }
     var isAlertActive by remember { mutableStateOf(false) }
     
+    // State for chart reference
+    var chartView by remember { mutableStateOf<LineChart?>(null) }
+    
     // Load saved alert price if exists
     LaunchedEffect(crypto.id) {
         val savedPrice = context.getSharedPreferences("price_alerts", Context.MODE_PRIVATE)
@@ -80,6 +90,52 @@ fun CryptoDetailScreen(
     }
 
     var showAlertDialog by remember { mutableStateOf(false) }
+
+    // Function to share chart and price
+    fun shareChartAndPrice() {
+        val chart = chartView ?: return
+        try {
+            // Capture chart as bitmap
+            chart.isDrawingCacheEnabled = true
+            val bitmap = Bitmap.createBitmap(chart.drawingCache)
+            chart.isDrawingCacheEnabled = false
+
+            // Save bitmap to file
+            val imagesFolder = File(context.cacheDir, "images")
+            imagesFolder.mkdirs()
+            val imageFile = File(imagesFolder, "chart_${crypto.symbol}.png")
+            FileOutputStream(imageFile).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+
+            // Create content URI using FileProvider
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                imageFile
+            )
+
+            // Create share intent
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND_MULTIPLE
+                type = "image/png"
+                putExtra(Intent.EXTRA_SUBJECT, "${crypto.name} (${crypto.symbol}) Price Chart")
+                putExtra(Intent.EXTRA_TEXT, """
+                    ${crypto.name} (${crypto.symbol})
+                    Current Price: ${viewModel.formatPrice(crypto.currentPrice)}
+                    ${if (crypto.priceChangePercentage24h != null) "24h Change: ${String.format("%.2f", crypto.priceChangePercentage24h)}%" else ""}
+                    Timeframe: ${currentTimeFrame.label}
+                """.trimIndent())
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, arrayListOf(contentUri))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            // Start share activity
+            context.startActivity(Intent.createChooser(shareIntent, "Share Chart"))
+        } catch (e: Exception) {
+            Toast.makeText(context, "Failed to share chart: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -98,6 +154,15 @@ fun CryptoDetailScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
+                            tint = TextPrimary
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { shareChartAndPrice() }) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "Share Chart",
                             tint = TextPrimary
                         )
                     }
@@ -268,7 +333,8 @@ fun CryptoDetailScreen(
                                     PriceChart(
                                         pricePoints = pricePoints,
                                         formatPrice = { price -> viewModel.formatPrice(price) },
-                                        timeFrame = currentTimeFrame
+                                        timeFrame = currentTimeFrame,
+                                        onChartCreated = { chart -> chartView = chart }
                                     )
                                 } else {
                                     Box(
@@ -385,13 +451,13 @@ fun CryptoDetailScreen(
 private fun PriceChart(
     pricePoints: List<PricePoint>,
     formatPrice: (Double) -> String,
-    timeFrame: TimeFrame
+    timeFrame: TimeFrame,
+    onChartCreated: (LineChart) -> Unit
 ) {
     val entries = pricePoints.mapIndexed { index, point ->
         Entry(index.toFloat(), point.price.toFloat())
     }
 
-    // Get the primary color outside of AndroidView
     val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
     val textColor = TextPrimary.toArgb()
     val backgroundColor = CardBackground.toArgb()
@@ -402,6 +468,9 @@ private fun PriceChart(
             .padding(horizontal = 8.dp),
         factory = { context ->
             LineChart(context).apply {
+                // Pass chart reference through callback
+                onChartCreated(this)
+                
                 description.isEnabled = false
                 legend.isEnabled = false
                 
