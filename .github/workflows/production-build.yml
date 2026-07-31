@@ -1,11 +1,13 @@
 # Manually-triggered "production" pipeline.
 #
-# IMPORTANT: No production keystore / release signing credentials are
-# configured at this time, so this job compiles an UNSIGNED DEBUG APK via the
-# Gradle wrapper. The artifact is explicitly labelled as a debug/test variant
-# (cryptolistings-production-debug.apk) to avoid any confusion with a future
-# signed release build.
-name: Build Production APK (Unsigned Debug)
+# Signs the release APK with a keystore injected from GitHub Secrets:
+#   - KEYSTORE_BASE64            base64-encoded release.keystore file
+#   - RELEASE_KEYSTORE_PASSWORD  keystore password
+#   - RELEASE_KEY_ALIAS          key alias
+#   - RELEASE_KEY_PASSWORD       key password
+# The native Gradle build (app/build.gradle.kts) reads these credentials from
+# the environment and wires them into the release signing config.
+name: Build Production APK (Signed)
 
 on:
   workflow_dispatch:
@@ -15,7 +17,7 @@ permissions:
 
 jobs:
   build:
-    name: Build unsigned debug APK
+    name: Build signed release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -34,24 +36,40 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Compile unsigned debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Stage APK as unsigned test variant
+      - name: Decode release keystore from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          mkdir -p dist
-          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
-          if [ -z "$APK" ]; then
-            echo "No APK found in app/build/outputs/apk/debug/" >&2
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret KEYSTORE_BASE64 is not set. Add it under Settings > Secrets and variables > Actions." >&2
             exit 1
           fi
-          cp "$APK" dist/cryptolistings-production-debug.apk
+          echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
 
-      - name: Upload unsigned test APK artifact
+      - name: Compile signed release APK
+        env:
+          KEYSTORE_FILE: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Stage signed release APK
+        run: |
+          mkdir -p dist
+          # Prefer the signed APK; never pick an *-unsigned.apk variant.
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' ! -name '*-unsigned.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "No APK found in app/build/outputs/apk/release/" >&2
+            exit 1
+          fi
+          cp "$APK" dist/cryptolistings-production-final.apk
+
+      - name: Upload signed release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cryptolistings-production-debug-apk
-          path: dist/cryptolistings-production-debug.apk
+          name: cryptolistings-production-final-apk
+          path: dist/cryptolistings-production-final.apk
           if-no-files-found: error
 
       - name: Delete existing production-release tag (if any)
@@ -61,20 +79,16 @@ jobs:
       - name: Create or update Production Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Production Build (Unsigned Debug — TEST ONLY)
+          name: Production Build
           tag_name: production-release
           target_commitish: ${{ github.sha }}
           body: |
             Manually triggered via `workflow_dispatch`.
 
-            > ⚠️ **TEST ONLY — UNSIGNED DEBUG BUILD**
-            >
-            > This artifact was compiled with `./gradlew assembleDebug`. It is
-            > **not signed** and **must not** be distributed to end users. No
-            > keystore / release signing credentials are configured at this time.
+            Signed release APK built with `./gradlew assembleRelease` and
+            signed with the keystore provided by GitHub Secrets.
 
             **Commit:** `${{ github.sha }}`
             **Branch:** `${{ github.ref_name }}`
-          files: dist/cryptolistings-production-debug.apk
-          prerelease: true
-          make_latest: false
+          files: dist/cryptolistings-production-final.apk
+          make_latest: true
