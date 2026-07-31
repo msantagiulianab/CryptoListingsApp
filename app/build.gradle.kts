@@ -17,6 +17,21 @@ val keyAliasName = System.getenv("KEY_ALIAS")
 val keyPasswordValue = System.getenv("KEY_PASSWORD")
 
 android {
+    println("=== 🔍 GRADLE CONFIGURATION PHASE SIGNING DIAGNOSTICS ===")
+    println("KEYSTORE_FILE Env: ${System.getenv("KEYSTORE_FILE")}")
+    println("KEYSTORE_PASSWORD Env Is Null: ${System.getenv("KEYSTORE_PASSWORD") == null}")
+    println("KEY_ALIAS Env: ${System.getenv("KEY_ALIAS")}")
+    println("KEY_PASSWORD Env Is Null: ${System.getenv("KEY_PASSWORD") == null}")
+    
+    val releaseConfig = signingConfigs.findByName("release")
+    println("Release Signing Config Object Found: ${releaseConfig != null}")
+    if (releaseConfig != null) {
+        println("  - storeFile Resolved Path: ${releaseConfig.storeFile?.absolutePath}")
+        println("  - storeFile Exists On Disk: ${releaseConfig.storeFile?.exists()}")
+    }
+    println("Target release buildType signingConfig Name: ${buildTypes.getByName("release").signingConfig?.name}")
+    println("=======================================================")
+
     namespace = "com.example.cryptolistings"
     compileSdk = 35
 
