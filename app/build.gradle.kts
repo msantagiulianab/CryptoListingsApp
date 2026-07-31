@@ -5,11 +5,13 @@ plugins {
 }
 
 // Release signing credentials are injected via environment variables
-// (GitHub Secrets in CI). KEYSTORE_FILE falls back to a local path so local
-// development builds don't break; the credentials themselves have no
-// fallbacks so a real `assembleRelease` always requires valid values and can
-// never silently degrade to an unsigned APK.
-val keystoreFilePath = System.getenv("KEYSTORE_FILE") ?: "release.keystore"
+// (GitHub Secrets in CI). CI passes an absolute KEYSTORE_FILE path
+// (${{ github.workspace }}/app/release.keystore); locally we fall back to an
+// absolute path under the app module dir so both scenarios resolve correctly.
+// The credentials themselves have no fallbacks so a real `assembleRelease`
+// always requires valid values and can never silently degrade to an unsigned
+// APK.
+val keystoreFilePath = System.getenv("KEYSTORE_FILE") ?: "${project.projectDir}/release.keystore"
 val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
 val keyAliasName = System.getenv("KEY_ALIAS")
 val keyPasswordValue = System.getenv("KEY_PASSWORD")
