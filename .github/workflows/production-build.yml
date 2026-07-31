@@ -1,0 +1,80 @@
+# Manually-triggered "production" pipeline.
+#
+# IMPORTANT: No production keystore / release signing credentials are
+# configured at this time, so this job compiles an UNSIGNED DEBUG APK via the
+# Gradle wrapper. The artifact is explicitly labelled as a debug/test variant
+# (cryptolistings-production-debug.apk) to avoid any confusion with a future
+# signed release build.
+name: Build Production APK (Unsigned Debug)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build unsigned debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Compile unsigned debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Stage APK as unsigned test variant
+        run: |
+          mkdir -p dist
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "No APK found in app/build/outputs/apk/debug/" >&2
+            exit 1
+          fi
+          cp "$APK" dist/cryptolistings-production-debug.apk
+
+      - name: Upload unsigned test APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptolistings-production-debug-apk
+          path: dist/cryptolistings-production-debug.apk
+          if-no-files-found: error
+
+      - name: Delete existing production-release tag (if any)
+        continue-on-error: true
+        run: git push origin --delete production-release || true
+
+      - name: Create or update Production Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Production Build (Unsigned Debug — TEST ONLY)
+          tag_name: production-release
+          target_commitish: ${{ github.sha }}
+          body: |
+            Manually triggered via `workflow_dispatch`.
+
+            > ⚠️ **TEST ONLY — UNSIGNED DEBUG BUILD**
+            >
+            > This artifact was compiled with `./gradlew assembleDebug`. It is
+            > **not signed** and **must not** be distributed to end users. No
+            > keystore / release signing credentials are configured at this time.
+
+            **Commit:** `${{ github.sha }}`
+            **Branch:** `${{ github.ref_name }}`
+          files: dist/cryptolistings-production-debug.apk
+          prerelease: true
+          make_latest: false
