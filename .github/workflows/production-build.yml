@@ -57,13 +57,16 @@ jobs:
       - name: Stage signed release APK
         run: |
           mkdir -p dist
-          # Prefer the signed APK; never pick an *-unsigned.apk variant.
-          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' ! -name '*-unsigned.apk' -print -quit)"
-          if [ -z "$APK" ]; then
-            echo "No APK found in app/build/outputs/apk/release/" >&2
+          # Dynamically find any APK inside the build outputs release folder
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned.apk" | head -n 1)
+          
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No signed APK found anywhere in the release build outputs!"
             exit 1
           fi
-          cp "$APK" dist/cryptolistings-production-final.apk
+          
+          echo "Found signed APK at: $APK_PATH"
+          cp "$APK_PATH" dist/cryptolistings-production-final.apk
 
       - name: Upload signed release APK artifact
         uses: actions/upload-artifact@v4
