@@ -58,6 +58,23 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+
+            // Force a hard build failure if the signing configuration was skipped or resolved as null
+            if (signingConfig == null) {
+                throw GradleException("❌ FATAL: 'release' buildType has NO signingConfig assigned! Check for duplicate or overriding buildTypes blocks later in the file.")
+            }
+
+            // Verify the credentials inside the attached signing config are actively populated
+            val currentConfig = signingConfig!!
+            if (currentConfig.storePassword.isNullOrEmpty()) {
+                throw GradleException("❌ FATAL: KEYSTORE_PASSWORD environment variable resolved to an empty or null string during compilation configuration.")
+            }
+            if (currentConfig.keyAlias.isNullOrEmpty()) {
+                throw GradleException("❌ FATAL: KEY_ALIAS environment variable resolved to an empty or null string during compilation configuration.")
+            }
+            if (currentConfig.keyPassword.isNullOrEmpty()) {
+                throw GradleException("❌ FATAL: KEY_PASSWORD environment variable resolved to an empty or null string during compilation configuration.")
+            }
         }
     }
 
