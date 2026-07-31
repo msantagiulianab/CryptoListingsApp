@@ -17,6 +17,15 @@ val keyAliasName = System.getenv("KEY_ALIAS")
 val keyPasswordValue = System.getenv("KEY_PASSWORD")
 
 android {
+    println("====================================================")
+    println("=== 🔍 GRADLE RUNTIME SIGNING CONFIG DIAGNOSTICS ===")
+    println("1. KEYSTORE_FILE value: ${System.getenv("KEYSTORE_FILE")}")
+    println("2. KEYSTORE_PASSWORD is null? ${System.getenv("KEYSTORE_PASSWORD") == null}")
+    println("3. KEYSTORE_PASSWORD length: ${System.getenv("KEYSTORE_PASSWORD")?.length ?: 0}")
+    println("4. KEY_ALIAS value: ${System.getenv("KEY_ALIAS")}")
+    println("5. KEY_PASSWORD is null? ${System.getenv("KEY_PASSWORD") == null}")
+    println("====================================================")
+
     namespace = "com.example.cryptolistings"
     compileSdk = 35
 
