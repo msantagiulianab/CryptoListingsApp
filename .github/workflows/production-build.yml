@@ -54,6 +54,11 @@ jobs:
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
+      - name: 🔍 Debug File Tree Search
+        run: |
+          echo "=== Listing all files generated in build outputs ==="
+          find app/build/outputs -type f || echo "No files found in outputs directory"
+
       - name: Stage signed release APK
         run: |
           mkdir -p dist
