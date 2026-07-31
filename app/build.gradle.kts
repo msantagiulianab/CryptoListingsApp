@@ -4,6 +4,16 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Release signing credentials are injected via environment variables
+// (GitHub Secrets in CI). KEYSTORE_FILE falls back to a local path so local
+// development builds don't break; the credentials themselves have no
+// fallbacks so a real `assembleRelease` always requires valid values and can
+// never silently degrade to an unsigned APK.
+val keystoreFilePath = System.getenv("KEYSTORE_FILE") ?: "release.keystore"
+val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+val keyAliasName = System.getenv("KEY_ALIAS")
+val keyPasswordValue = System.getenv("KEY_PASSWORD")
+
 android {
     namespace = "com.example.cryptolistings"
     compileSdk = 35
@@ -20,14 +30,10 @@ android {
 
     signingConfigs {
         create("release") {
-            // Production signing credentials are injected via environment
-            // variables (GitHub Secrets in CI). Safe local defaults keep
-            // local development/debug builds working when the variables are
-            // absent — only a real `assembleRelease` needs valid credentials.
-            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+            storeFile = file(keystoreFilePath)
+            storePassword = keystorePassword
+            keyAlias = keyAliasName
+            keyPassword = keyPasswordValue
         }
     }
 

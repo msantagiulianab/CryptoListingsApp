@@ -54,19 +54,15 @@ jobs:
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: 🔍 Debug File Tree Search
-        run: |
-          echo "=== Listing all files generated in build outputs ==="
-          find app/build/outputs -type f || echo "No files found in outputs directory"
-
       - name: Stage signed release APK
         run: |
           mkdir -p dist
-          # Dynamically find any APK inside the build outputs release folder
-          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned.apk" | head -n 1)
+          # Gradle emits the signed APK as app-release.apk once the release
+          # signing config is applied; fail loudly if it is not present.
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
           
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::No signed APK found anywhere in the release build outputs!"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::Signed APK not found at $APK_PATH — release build was not signed!"
             exit 1
           fi
           
