@@ -49,20 +49,33 @@ jobs:
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: Stage signed release APK
+      - name: 🔐 Sign Production APK via apksigner
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           mkdir -p dist
-          APK_PATH="app/build/outputs/apk/release/app-release.apk"
           
-          if [ ! -f "$APK_PATH" ]; then
-            echo "::error::Target APK not found at $APK_PATH!"
-            echo "=== 🔍 LISTING ALL GENERATED ASSETS IN THIS DIRECTORY ==="
-            ls -la app/build/outputs/apk/release/ || echo "Directory folder not found"
+          echo "=== Locating Android SDK apksigner tool ==="
+          APKSIGNER_PATH=$(find ${ANDROID_HOME}/build-tools/ -name "apksigner" | sort -V | tail -n 1)
+          if [ -z "$APKSIGNER_PATH" ]; then
+            echo "::error::apksigner tool could not be found in Android build-tools!"
             exit 1
           fi
+          echo "Using apksigner at: $APKSIGNER_PATH"
           
-          echo "Found signed APK at: $APK_PATH"
-          cp "$APK_PATH" dist/cryptolistings-production-final.apk
+          echo "=== Signing Unsigned Production APK ==="
+          $APKSIGNER_PATH sign \
+            --ks app/release.keystore \
+            --ks-pass pass:"$KEYSTORE_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass pass:"$KEY_PASSWORD" \
+            --out dist/cryptolistings-production-final.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            
+          echo "=== Verifying Signed Production Signature ==="
+          $APKSIGNER_PATH verify --verbose dist/cryptolistings-production-final.apk
 
       - name: Upload signed release APK artifact
         uses: actions/upload-artifact@v4
